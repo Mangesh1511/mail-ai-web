@@ -1,0 +1,91 @@
+<main class="page-shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Mail AI home">
+      <span class="brand-mark">m</span><span>mail<span class="brand-dot">.</span>ai</span>
+    </a>
+    <div class="topbar-actions">
+      <span class="service-indicator"><span class="status-dot" [class.status-down]="serviceStatus !== 'Service is ready'"></span>{{ serviceStatus }}</span>
+      <button class="button button-quiet" type="button" *ngIf="!authenticated" (click)="connectGoogle()">Connect Gmail <span aria-hidden="true">↗</span></button>
+      <span class="connected-pill" *ngIf="authenticated"><span class="status-dot"></span> Gmail connected</span>
+    </div>
+  </header>
+
+  <section class="hero">
+    <p class="eyebrow">EMAIL, ON YOUR SCHEDULE</p>
+    <h1>Send it at the<br><span>right time.</span></h1>
+    <p class="hero-copy">Write once. Choose when it goes out. Your Gmail handles the rest.</p>
+  </section>
+
+  <section class="workspace">
+    <article class="panel compose-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">NEW SCHEDULE</p><h2>Compose email</h2></div>
+        <span class="step-mark">01</span>
+      </div>
+
+      <div class="mode-tabs" role="tablist" aria-label="Schedule type">
+        <button type="button" role="tab" [attr.aria-selected]="mode === 'fixed'" [class.active]="mode === 'fixed'" (click)="setMode('fixed')">One time</button>
+        <button type="button" role="tab" [attr.aria-selected]="mode === 'recurrence'" [class.active]="mode === 'recurrence'" (click)="setMode('recurrence')">Recurring</button>
+      </div>
+
+      <form #scheduleForm="ngForm" (ngSubmit)="createSchedule()">
+        <label for="recipients">To</label>
+        <input id="recipients" name="recipients" [(ngModel)]="recipients" placeholder="name@example.com, another@example.com" autocomplete="email" required>
+        <p class="field-hint">Separate multiple addresses with commas.</p>
+
+        <label for="subject">Subject</label>
+        <input id="subject" name="subject" [(ngModel)]="subject" placeholder="A quick follow-up" maxlength="1000" required>
+
+        <label for="body">Message</label>
+        <textarea id="body" name="body" [(ngModel)]="body" rows="4" placeholder="Write your email…" maxlength="20000" required></textarea>
+
+        <div class="date-grid" *ngIf="mode === 'fixed'">
+          <div class="field-wide"><label for="sendAt">Send at</label><input id="sendAt" name="sendAt" type="datetime-local" [(ngModel)]="sendAt" required></div>
+        </div>
+        <div class="date-grid" *ngIf="mode === 'recurrence'">
+          <div><label for="startAt">Start at</label><input id="startAt" name="startAt" type="datetime-local" [(ngModel)]="startAt" required></div>
+          <div><label for="endAt">Repeat until</label><input id="endAt" name="endAt" type="datetime-local" [(ngModel)]="endAt" required></div>
+          <div class="field-wide"><label for="interval">Repeat every</label>
+            <select id="interval" name="intervalSeconds" [(ngModel)]="intervalSeconds">
+              <option [ngValue]="3600">1 hour</option><option [ngValue]="7200">2 hours</option>
+              <option [ngValue]="21600">6 hours</option><option [ngValue]="43200">12 hours</option>
+              <option [ngValue]="86400">24 hours</option>
+            </select>
+          </div>
+        </div>
+        <p class="field-hint">Times use {{ timezone }}. Schedule up to 7 days ahead.</p>
+
+        <div class="notice" *ngIf="notice" [class.notice-error]="noticeType === 'error'" [class.notice-success]="noticeType === 'success'" role="status" aria-live="polite">{{ notice }}</div>
+        <button class="button button-primary submit-button" type="submit" [disabled]="!scheduleForm.valid || submitting">
+          <span>{{ submitting ? 'Saving…' : mode === 'fixed' ? 'Schedule email' : 'Schedule recurring email' }}</span><span aria-hidden="true">↗</span>
+        </button>
+        <p class="signin-hint" *ngIf="!authenticated">Connect Gmail to enable scheduling.</p>
+      </form>
+    </article>
+
+    <aside class="side-column">
+      <section class="panel schedules-panel">
+        <div class="panel-heading schedules-heading">
+          <div><p class="eyebrow">YOUR OUTBOX</p><h2>Scheduled</h2></div>
+          <span class="count-badge">{{ schedules.length }}</span>
+        </div>
+        <div class="schedules-list" *ngIf="!loading && schedules.length">
+          <article class="schedule-card" *ngFor="let schedule of schedules">
+            <div class="schedule-card-top"><h3>{{ schedule.subject }}</h3><span class="schedule-type">{{ schedule.type === 'RECURRENCE' ? 'RECURRING' : 'ONE TIME' }}</span></div>
+            <p class="schedule-time" *ngIf="schedule.type === 'FIXED'">{{ schedule.startAt | date:'medium' }}</p>
+            <p class="schedule-time" *ngIf="schedule.type === 'RECURRENCE'">{{ formatInterval(schedule.intervalSeconds) }} · {{ schedule.startAt | date:'short' }} – {{ schedule.endAt | date:'short' }}</p>
+            <p class="schedule-recipient">To: {{ schedule.recipients.join(', ') }}</p>
+          </article>
+        </div>
+        <div class="empty-state" *ngIf="!loading && !schedules.length">
+          <span class="empty-icon">↗</span><p>{{ authenticated ? 'Your scheduled emails will show up here.' : 'Connect Gmail to see your schedules.' }}</p>
+          <button class="text-button" *ngIf="authenticated" type="button" (click)="refreshSchedules()">Refresh schedules</button>
+        </div>
+        <div class="empty-state" *ngIf="loading"><span class="loading-ring"></span><p>Loading schedules…</p></div>
+      </section>
+      <div class="privacy-note"><span class="privacy-icon">◈</span><p><strong>Sent through your Gmail.</strong><br>Mail.ai requests send permission to deliver your scheduled messages.</p></div>
+    </aside>
+  </section>
+
+  <footer>Simple scheduling for the messages that matter.</footer>
+</main>

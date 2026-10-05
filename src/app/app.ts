@@ -102,11 +102,19 @@ export class ChatPage implements OnInit {
   showLoginPrompt = false;
   private conversationId = '';
   private backendBaseUrl = '';
+  private verifyingGoogleConnection = false;
 
   constructor() {
-    if (new URLSearchParams(window.location.search).has('connected')) {
-      this.notice = 'Gmail is connected. You can schedule an email.';
-      this.noticeType = 'success';
+    const query = new URLSearchParams(window.location.search);
+    const oauthError = query.get('authError');
+    if (oauthError) {
+      this.chatInput = sessionStorage.getItem('mail-ai-pending-message') ?? '';
+      sessionStorage.removeItem('mail-ai-pending-message');
+      this.notice = this.googleAuthErrorMessage(oauthError);
+      this.noticeType = 'error';
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (query.has('connected')) {
+      this.verifyingGoogleConnection = true;
       this.chatInput = sessionStorage.getItem('mail-ai-pending-message') ?? '';
       sessionStorage.removeItem('mail-ai-pending-message');
       window.history.replaceState({}, '', window.location.pathname);
@@ -317,6 +325,11 @@ export class ChatPage implements OnInit {
         this.schedules = schedules;
         this.authenticated = true;
         this.loading = false;
+        if (this.verifyingGoogleConnection) {
+          this.notice = 'Gmail is connected. You can schedule an email.';
+          this.noticeType = 'success';
+          this.verifyingGoogleConnection = false;
+        }
         this.changeDetector.markForCheck();
       },
       error: (error: HttpErrorResponse) => {
@@ -324,6 +337,13 @@ export class ChatPage implements OnInit {
         if (error.status === 401) {
           this.authenticated = false;
           this.schedules = [];
+        }
+        if (this.verifyingGoogleConnection) {
+          this.notice = error.status === 401
+            ? 'Google sign-in completed, but the app could not restore your session. Check the backend cookie and session settings, then try again.'
+            : 'Google sign-in completed, but the app could not verify your session. Please try again.';
+          this.noticeType = 'error';
+          this.verifyingGoogleConnection = false;
         }
         this.changeDetector.markForCheck();
       },
@@ -399,6 +419,20 @@ export class ChatPage implements OnInit {
     if (body?.error) return body.error;
     if (error.status === 0) return 'Could not reach the schedule service. Check that the backend is running.';
     return `Could not save the schedule (HTTP ${error.status}). Check the dates and try again.`;
+  }
+
+  private googleAuthErrorMessage(code: string): string {
+    const messages: Record<string, string> = {
+      state_mismatch: 'Google sign-in could not be verified. Your sign-in session may have expired or its cookie was not returned. Please connect Gmail again.',
+      consent_denied: 'Gmail access was not granted. Connect Gmail again and approve the permission to send email.',
+      missing_code: 'Google did not return a sign-in code. Please try connecting Gmail again.',
+      oauth_not_configured: 'Google sign-in is temporarily unavailable. Please contact support.',
+      token_exchange_failed: 'Google could not complete sign-in. The authorization may have expired; please connect Gmail again.',
+      profile_lookup_failed: 'Google sign-in completed, but Mail.ai could not read the account identity. Please try again.',
+      refresh_token_missing: 'Mail.ai did not receive permission to access Gmail when you are away. Please reconnect and approve offline access.',
+      account_store_failed: 'Google sign-in succeeded, but Mail.ai could not securely save the Gmail connection. Please try again later.',
+    };
+    return messages[code] ?? 'Google sign-in could not be completed. Please connect Gmail again.';
   }
 }
 
